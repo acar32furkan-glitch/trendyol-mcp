@@ -147,4 +147,4 @@ Issues and PRs are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDU
 
 ## License
 
-[MIT](LICENSE) © 2026 acar32furkan-glitch
+[MIT](LICENSE) © 2026 Furkan Acar (acar32furkan-glitch)

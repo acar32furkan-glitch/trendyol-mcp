@@ -9,7 +9,7 @@ description = "Read-only Model Context Protocol (MCP) server for Turkish marketp
 readme = "README.md"
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
-authors = [{ name = "acar32furkan-glitch", email = "284462468+acar32furkan-glitch@users.noreply.github.com" }]
+authors = [{ name = "Furkan Acar", email = "284462468+acar32furkan-glitch@users.noreply.github.com" }]
 keywords = ["mcp", "model-context-protocol", "trendyol", "hepsiburada", "e-commerce", "marketplace", "ai-agents", "cli"]
 classifiers = [
   "Development Status :: 4 - Beta",

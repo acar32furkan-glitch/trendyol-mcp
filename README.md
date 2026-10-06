@@ -139,4 +139,4 @@ Issue ve PR'lar açıktır: [CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDU
 
 ## Lisans
 
-[MIT](LICENSE) © 2026 acar32furkan-glitch
+[MIT](LICENSE) © 2026 Furkan Acar (acar32furkan-glitch)
