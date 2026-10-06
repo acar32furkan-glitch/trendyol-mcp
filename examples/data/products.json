@@ -1,0 +1,74 @@
+[
+  {
+    "barcode": "P-3001",
+    "title": "Deri Cüzdan - Siyah",
+    "marketplace": "trendyol",
+    "stock": 0,
+    "price": 349.90,
+    "list_price": 349.90,
+    "updated_at": "2026-10-04T09:00:00+03:00"
+  },
+  {
+    "barcode": "P-3002",
+    "title": "Keten Bluz - Beyaz",
+    "marketplace": "trendyol",
+    "stock": 3,
+    "price": 289.00,
+    "list_price": 289.00,
+    "updated_at": "2026-10-04T09:00:00+03:00"
+  },
+  {
+    "barcode": "P-3003",
+    "title": "Triko Hırka - Krem",
+    "marketplace": "trendyol",
+    "stock": 5,
+    "price": 199.90,
+    "list_price": 199.90,
+    "updated_at": "2026-10-04T09:00:00+03:00"
+  },
+  {
+    "barcode": "P-3004",
+    "title": "Pamuklu Gömlek - Bej",
+    "marketplace": "trendyol",
+    "stock": 42,
+    "price": 129.90,
+    "list_price": 199.90,
+    "updated_at": "2026-10-04T09:00:00+03:00"
+  },
+  {
+    "barcode": "P-3005",
+    "title": "Yün Atkı - Antrasit",
+    "marketplace": "trendyol",
+    "stock": 12,
+    "price": 249.90,
+    "list_price": 199.90,
+    "updated_at": "2026-10-04T09:00:00+03:00"
+  },
+  {
+    "barcode": "P-3006",
+    "title": "Kot Pantolon - Slim",
+    "marketplace": "trendyol",
+    "stock": 8,
+    "price": 39.90,
+    "list_price": 189.90,
+    "updated_at": "2026-10-04T09:00:00+03:00"
+  },
+  {
+    "barcode": "P-3007",
+    "title": "Bambu Çorap 3'lü",
+    "marketplace": "trendyol",
+    "stock": 120,
+    "price": 89.90,
+    "list_price": 89.90,
+    "updated_at": "2026-10-04T09:00:00+03:00"
+  },
+  {
+    "barcode": "P-3008",
+    "title": "Sweatshirt - Lacivert",
+    "marketplace": "trendyol",
+    "stock": 60,
+    "price": 159.90,
+    "list_price": 199.90,
+    "updated_at": "2026-10-04T09:00:00+03:00"
+  }
+]

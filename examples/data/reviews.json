@@ -1,0 +1,50 @@
+[
+  {
+    "id": "V-4001",
+    "product_barcode": "P-3001",
+    "rating": 1,
+    "comment": "Ürün geldi ama kutusu ezilmişti, fermuarı da takılıyor. İade etmek istiyorum.",
+    "created_at": "2026-10-02T11:20:00+03:00",
+    "answered": false
+  },
+  {
+    "id": "V-4002",
+    "product_barcode": "P-3006",
+    "rating": 2,
+    "comment": "Rengi fotoğraftakinden çok farklı çıktı, beklemiyordum.",
+    "created_at": "2026-10-03T18:40:00+03:00",
+    "answered": false
+  },
+  {
+    "id": "V-4003",
+    "product_barcode": "P-3004",
+    "rating": 2,
+    "comment": "Ölçüler küçük, bir beden büyük almanızı öneririm.",
+    "created_at": "2026-10-04T10:05:00+03:00",
+    "answered": true
+  },
+  {
+    "id": "V-4004",
+    "product_barcode": "P-3007",
+    "rating": 5,
+    "comment": "Çok hızlı kargolandı, teşekkürler.",
+    "created_at": "2026-10-04T16:30:00+03:00",
+    "answered": false
+  },
+  {
+    "id": "V-4005",
+    "product_barcode": "P-3008",
+    "rating": 4,
+    "comment": "Kumaşı kaliteli, fiyatına göre iyi.",
+    "created_at": "2026-10-03T12:00:00+03:00",
+    "answered": false
+  },
+  {
+    "id": "V-4006",
+    "product_barcode": "P-3002",
+    "rating": 5,
+    "comment": "Üçüncü alışım, kalitesi istikrarlı.",
+    "created_at": "2026-10-02T09:10:00+03:00",
+    "answered": false
+  }
+]
