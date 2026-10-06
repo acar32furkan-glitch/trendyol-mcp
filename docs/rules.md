@@ -30,6 +30,25 @@ eylem odaklıdır: **ne oldu → hangi kayıt → bugün ne yapılmalı**.
 Eşikler sabit değildir: `Thresholds` üzerinden kendi işletmenize göre ayarlanabilir ve testlerde
 parametre olarak değiştirilerek davranış doğrulanabilir.
 
+## Pazaryeri yetenek matrisi
+
+Her adaptör aynı sözleşmeyi uygular ama pazaryerleri aynı veriyi sunmaz. Eksik veri **sessizce**
+boş bırakılmaz; kural atlanır ve günlük özet `not:` satırıyla bunu bildirir.
+
+| Yetenek | `fixture` (örnek veri) | `trendyol` | `hepsiburada` |
+|---------|------------------------|-----------|---------------|
+| Sipariş listesi (`list_orders`) | ✅ | ✅ | ✅ |
+| İade/talep listesi (`list_returns`) | ✅ | ✅ | ✅ |
+| Listeleme + stok (`list_products`) | ✅ | ✅ | ✅ |
+| Ürün yorumları (`list_reviews`) | ✅ | ✅ | ❌ (satıcı API'sinde uç nokta yok) |
+| Teslim sözü (`promised_delivery_at`) | ✅ | ✅ | ✅ (`estimatedDeliveryEndDate`) |
+| Liste fiyatı (`list_price`) | ✅ | ✅ | ⚠️ yalnızca sağlayıcı gönderirse |
+| Fiyat anomalisi kuralı | ✅ | ✅ | ⚠️ liste fiyatı yoksa değerlendirilemez |
+
+Sonuç: `YORUM_CEVAPSIZ` kuralı Hepsiburada kaynağında çalışmaz ve `IADE_ORANI` gibi bilgi
+bulguları yalnızca okunabilen verilerden üretilir. Bu davranış `tests/test_hepsiburada_adapter.py`
+içinde ayrıca doğrulanır.
+
 ## Bulgu şeması
 
 ```json

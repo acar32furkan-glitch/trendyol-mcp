@@ -8,9 +8,12 @@ Her sürüm tek bir soruya cevap verir. **Yazma yetkisi hiçbir sürümde planla
 - Kimlik bilgisi olmadan çalışan örnek veri seti ve uçtan uca stdio testi.
 
 ## v0.2.0 — İkinci pazaryeri + rapor dağıtımı
-- `adapters/hepsiburada.py` (salt okunur) ve ortak adaptör sözleşmesinin ikinci uygulaması.
+- ✅ `adapters/hepsiburada.py` (salt okunur) — sipariş, iade ve listeleme verisi; ortak sözleşmenin
+  ikinci uygulaması. **Kalan iş:** gerçek satıcı hesabıyla canlı doğrulama (uç nokta/alan adı sapması
+  çıkarsa yalnızca alan tercih listeleri güncellenir).
 - Günlük özeti e-posta/Slack webhook'una gönderen `trendyol-mcp report --to ...` komutu.
-- Örnek veride ikinci pazaryeri senaryoları (çok kanallı stok çakışması).
+- Örnek veride ikinci pazaryeri senaryoları (çok kanallı stok çakışması): aynı ürünün iki
+  pazaryerindeki stokunu karşılaştırma.
 
 ## v0.3.0 — Zamanlanmış çalışma + hafif panel
 - `trendyol-mcp watch --at 09:00` (yerelde zamanlayıcı) ve Docker imajı.

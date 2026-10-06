@@ -6,6 +6,8 @@
 [![Ruff](https://img.shields.io/badge/lint-ruff-261230)](https://docs.astral.sh/ruff/)
 [![Checked with mypy](https://img.shields.io/badge/mypy-strict-2f6f9f)](https://mypy-lang.org/)
 
+**Türkçe** · [English](README.en.md)
+
 **Türk pazaryerleri için salt okunur MCP sunucusu.** Bir satıcının sipariş, iade, stok ve yorum
 verisini okur; SLA ihlallerini, stok ve fiyat tuzaklarını bulur ve sabah okuyacağınız **tek Türkçe
 aksiyon raporu** üretir. Hiçbir araç satıcı hesabında değişiklik yapmaz.
@@ -73,15 +75,22 @@ uv run trendyol-mcp --help
 
 ## Gerçek veriye geçiş
 
+İki pazaryeri de aynı arayüzü kullanır; hangi kimlik bilgisi tanımlıysa `--source auto` onu seçer.
+
 ```bash
 cp .env.example .env        # .env commit edilmez
-# TRENDYOL_SUPPLIER_ID / TRENDYOL_API_KEY / TRENDYOL_API_SECRET doldurun
-uv run trendyol-mcp check   # "aktif kaynak: trendyol" yazmalı
+# Trendyol:      TRENDYOL_SUPPLIER_ID / TRENDYOL_API_KEY / TRENDYOL_API_SECRET
+# Hepsiburada:   HEPSIBURADA_MERCHANT_ID / HEPSIBURADA_API_KEY (+ HEPSIBURADA_MERCHANT_NAME)
+uv run trendyol-mcp check                     # "aktif kaynak" ve "yorum okuma" satırına bakın
+uv run trendyol-mcp demo --source hepsiburada
 uv run trendyol-mcp serve
 ```
 
-Yalnızca `GET` istekleri yapılır (`/integration/order/...`, `/integration/product/...`).
-Kimlik bilgileri ortam değişkeninden okunur, loglanmaz. Ayrıntı: [SECURITY.md](SECURITY.md).
+Yalnızca `GET` istekleri yapılır (`/integration/order/...`, `/integration/product/...` — Trendyol;
+`/orders`, `/returns`, `/listings/merchantid/...` — Hepsiburada). Kimlik bilgileri ortam
+değişkeninden okunur, loglanmaz. Her pazaryerinin neyi okuyabildiği (ve neyi okuyamadığı)
+`docs/rules.md` içindeki **yetenek matrisinde**; Hepsiburada'da ürün yorumu uç noktası olmadığı için
+günlük özet bu kuralı atladığını `not:` satırıyla söyler. Ayrıntı: [SECURITY.md](SECURITY.md).
 
 ## Mimari
 
@@ -90,7 +99,9 @@ adapters/  →  domain/  →  tools.py  →  server.py (MCP)  ·  cli.py (termin
  (salt okunur)  (saf kural)   (JSON)      (read-only araç kaydı)
 ```
 
-- `adapters/` pazaryeri ham verisini normalize modellere çevirir (`FixtureAdapter`, `TrendyolAdapter`).
+- `adapters/` pazaryeri ham verisini normalize modellere çevirir: `FixtureAdapter`, `TrendyolAdapter`,
+  `HepsiburadaAdapter`. Kimlik doğrulama, yeniden deneme ve alan dönüşümü `adapters/http.py` ile
+  `adapters/parsing.py` içinde tek yerde durur; yeni pazaryeri eklemek tek dosyalık bir iştir.
 - `domain/` saf fonksiyonlar içerir; her kural `now` parametresi alır → testler deterministik.
 - `render.py` bulguları Türkçe metne çevirir; CLI ve MCP **aynı** metni gösterir.
 - Diyagram ve gerekçeler: [docs/architecture.md](docs/architecture.md) · karar kayıtları: [docs/adr/](docs/adr/)
@@ -100,18 +111,20 @@ adapters/  →  domain/  →  tools.py  →  server.py (MCP)  ·  cli.py (termin
 ```bash
 uv run ruff check . && uv run ruff format --check .
 uv run mypy                              # strict, tüm paket + testler + betikler
-uv run pytest --cov=trendyol_mcp         # 70 test, ~%91 kapsam
+uv run pytest --cov=trendyol_mcp         # 84 test, ~%91 kapsam
 ```
 
-- **70 test**: kural sınırları (48/72 saat tam sınırları gibi), HTTP eşlemesi (`respx`), CLI sözleşmesi
-  ve **stdio üzerinden gerçek MCP turu** (`tests/test_server_mcp.py`: el sıkışma → `tools/list` →
-  `tools/call`).
+- **84 test**: kural sınırları (48/72 saat tam sınırları gibi), iki pazaryerinin HTTP eşlemesi
+  (`respx`), CLI sözleşmesi ve **stdio üzerinden gerçek MCP turu** (`tests/test_server_mcp.py`:
+  el sıkışma → `tools/list` → `tools/call`).
 - CI: Python 3.12 ve 3.13 · ruff · ruff format · mypy strict · pytest · kimlik bilgisi olmadan CLI smoke testi.
 - `server.py` yalnızca alt süreçte çalıştığı için kapsam raporunda 0 görünür; canlı doğrulaması entegrasyon testindedir.
 
 ## İlkeler ve sınırlar
 
 - **Salt okunur:** yazma/güncelleme yok, panel kazıma yok ([ADR-0001](docs/adr/0001-read-only-by-design.md)).
+- **İki pazaryeri, tek sözleşme:** Trendyol ve Hepsiburada adaptörleri aynı salt okunur protokolü
+  uygular; okunamayan veri (ör. Hepsiburada yorumları) sessizce atlanmaz, özet `not:` düşer.
 - **Kimlik bilgisi olmadan çalışır:** örnek veri seti kendi zaman çapasını taşır
   ([ADR-0002](docs/adr/0002-fixture-first-testability.md)) → demo ve testler tekrarlanabilir.
 - **Örnek veri anonimdir:** gerçek müşteri, sipariş veya fiyat bilgisi içermez.
