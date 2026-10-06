@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Güvenlik açığı
+    url: https://github.com/acar32furkan-glitch/trendyol-mcp/security/policy
+    about: Güvenlikle ilgili konuları herkese açık issue olarak açmayın; SECURITY.md dosyasını okuyun.
+  - name: Soru / fikir
+    url: https://github.com/acar32furkan-glitch/trendyol-mcp/discussions
+    about: Kullanım soruları ve fikir alışverişi için tartışma bölümü.
