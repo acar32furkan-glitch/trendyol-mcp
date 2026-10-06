@@ -1,0 +1,37 @@
+name: Özellik isteği
+description: Yeni bir araç, kural veya pazaryeri adaptörü önerin.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Hangi sorun çözülecek?
+      description: Kullanıcı hikâyesi olarak yazın ("satıcı olarak ... istiyorum, çünkü ...").
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Öneri
+      description: Yeni araç/kural adı, hangi veriyi okur, hangi bulguyu üretir.
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Kapsam
+      options:
+        - Yeni kural (mevcut veriyle çalışır)
+        - Yeni araç (MCP)
+        - Yeni pazaryeri adaptörü
+        - Dokümantasyon
+    validations:
+      required: true
+  - type: checkboxes
+    id: readonly
+    attributes:
+      label: Salt okunur ilke
+      options:
+        - label: Önerilen özellik satıcı hesabında değişiklik yapmıyor (salt okunur kalıyor)
+          required: true

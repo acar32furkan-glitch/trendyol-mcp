@@ -1,0 +1,41 @@
+name: Hata bildirimi
+description: Beklenmeyen bir davranış veya çökme bildirin.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Teşekkürler! Lütfen **gerçek kimlik bilgisi, müşteri adı veya sipariş numarası paylaşmayın.**
+        Örnek veri (`examples/data`) ile yeniden üretilebilen bir senaryo en hızlı sonucu verir.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Ne oldu?
+      description: Beklediğiniz davranış ile gerçekleşen davranış.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Yeniden üretme adımları
+      description: Çalıştırdığınız komut ve (varsa) çıktı.
+      placeholder: |
+        uv run trendyol-mcp --source fixture demo
+        ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Sürüm
+      description: "`trendyol-mcp --version` çıktısı"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Ortam
+      placeholder: "Windows 11 · Python 3.12.11 · uv 0.11"
+    validations:
+      required: false
