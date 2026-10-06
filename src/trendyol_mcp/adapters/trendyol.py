@@ -11,14 +11,14 @@ seller's own credentials.
 from __future__ import annotations
 
 import base64
-import time
 from datetime import UTC, date, datetime
-from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Final
 
 import httpx
 
-from trendyol_mcp.adapters.base import AdapterError, NotConfiguredError
+from trendyol_mcp.adapters.base import NotConfiguredError
+from trendyol_mcp.adapters.http import request_json
+from trendyol_mcp.adapters.parsing import as_decimal, as_optional_str, first_value, parse_datetime
 from trendyol_mcp.config import TrendyolCredentials
 from trendyol_mcp.models import (
     Order,
@@ -51,52 +51,12 @@ _CLAIM_STATUS: Final[dict[str, ReturnStatus]] = {
     "refunded": ReturnStatus.REFUNDED,
 }
 
-_RETRY_STATUS_CODES: Final = frozenset({429, 500, 502, 503, 504})
-
-
-def _parse_datetime(value: Any, *, fallback: datetime) -> datetime:
-    """Parse an integration date (epoch millis, ISO string or datetime) into a datetime."""
-    if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=UTC)
-    if isinstance(value, int | float):
-        return datetime.fromtimestamp(float(value) / 1000.0, tz=UTC)
-    if isinstance(value, str) and value:
-        text = value.replace("Z", "+00:00")
-        try:
-            parsed = datetime.fromisoformat(text)
-        except ValueError:
-            return fallback
-        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
-    return fallback
-
-
-def _first(mapping: dict[str, Any], *keys: str) -> Any:
-    for key in keys:
-        if key in mapping and mapping[key] is not None:
-            return mapping[key]
-    return None
-
-
-def _as_decimal(value: Any, default: str = "0") -> Decimal:
-    """Convert a provider value (int, float, str or Decimal) into Decimal safely.
-
-    Providers are inconsistent: some send ``"129.9"``, some ``129.9``. Converting through
-    ``str`` avoids binary float artefacts in money values.
-    """
-    if isinstance(value, Decimal):
-        return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    if isinstance(value, int | float | str):
-        try:
-            return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        except ArithmeticError:
-            return Decimal(default)
-    return Decimal(default)
-
 
 class TrendyolAdapter:
     """Read-only client for the Trendyol Marketplace Integration API."""
 
     name = "trendyol"
+    supports_reviews = True
 
     def __init__(
         self,
@@ -144,29 +104,14 @@ class TrendyolAdapter:
 
     # ------------------------------------------------------------------ transport
     def _get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
-        last_error: Exception | None = None
-        for attempt in range(self._max_retries):
-            try:
-                response = self._client.get(path, params={k: v for k, v in params.items() if v is not None})
-            except httpx.HTTPError as exc:  # network level
-                last_error = exc
-            else:
-                if response.status_code in _RETRY_STATUS_CODES:
-                    last_error = AdapterError(f"{path} geçici hata döndü: HTTP {response.status_code}")
-                elif response.status_code == 401:
-                    raise AdapterError(
-                        "Trendyol kimlik bilgileri reddedildi (HTTP 401). Anahtar/secret değerlerini kontrol edin."
-                    )
-                elif response.status_code >= 400:
-                    raise AdapterError(f"{path} isteği başarısız: HTTP {response.status_code}")
-                else:
-                    payload = response.json()
-                    if not isinstance(payload, dict):
-                        raise AdapterError(f"{path} beklenmeyen yanıt tipi döndürdü")
-                    return payload
-            if attempt + 1 < self._max_retries:
-                time.sleep(self._backoff * (2**attempt))
-        raise AdapterError(f"{path} isteği {self._max_retries} denemede başarısız oldu: {last_error}")
+        """Delege edilen tek taşıma noktası: ortak ``request_json`` politikası."""
+        return request_json(
+            self._client,
+            path,
+            params,
+            max_retries=self._max_retries,
+            backoff_seconds=self._backoff,
+        )
 
     def _seller_path(self, suffix: str) -> str:
         return f"/integration/{suffix.format(seller=self._credentials.supplier_id)}"
@@ -228,75 +173,68 @@ class TrendyolAdapter:
 
     # ------------------------------------------------------------------ mapping
     def _to_order(self, raw: dict[str, Any], now: datetime, *, fallback_time: datetime) -> Order:
-        created = _parse_datetime(_first(raw, "orderDate", "createdDate", "createdAt"), fallback=fallback_time)
+        created = parse_datetime(first_value(raw, "orderDate", "createdDate", "createdAt"), fallback=fallback_time)
         raw_lines = raw.get("lines") or []
         lines: list[OrderLine] = []
         for line in raw_lines:
             if not isinstance(line, dict):
                 continue
-            quantity = int(_first(line, "quantity", "amount") or 0)
+            quantity = int(first_value(line, "quantity", "amount") or 0)
             if quantity <= 0:
                 continue
             lines.append(
                 OrderLine(
-                    barcode=str(_first(line, "barcode", "stockCode") or ""),
-                    product_name=str(_first(line, "productName", "merchantSku") or ""),
+                    barcode=str(first_value(line, "barcode", "stockCode") or ""),
+                    product_name=str(first_value(line, "productName", "merchantSku") or ""),
                     quantity=quantity,
-                    unit_price=_as_decimal(_first(line, "price", "lineUnitPrice", "amount")),
+                    unit_price=as_decimal(first_value(line, "price", "lineUnitPrice", "amount")),
                 )
             )
-        status_text = str(_first(raw, "status", "orderStatus") or "").replace(" ", "").lower()
+        status_text = str(first_value(raw, "status", "orderStatus") or "").replace(" ", "").lower()
         return Order(
-            id=str(_first(raw, "id", "orderId", "orderNumber") or ""),
-            order_number=str(_first(raw, "orderNumber", "orderId") or ""),
+            id=str(first_value(raw, "id", "orderId", "orderNumber") or ""),
+            order_number=str(first_value(raw, "orderNumber", "orderId") or ""),
             marketplace=self.name,
             status=_ORDER_STATUS.get(status_text, OrderStatus.CREATED),
             created_at=created,
-            customer_name=str(_first(raw, "customerFirstName", "customerName") or "—"),
-            total_price=_as_decimal(_first(raw, "totalPrice", "packageTotalPrice", "grossAmount")),
+            customer_name=str(first_value(raw, "customerFirstName", "customerName") or "—"),
+            total_price=as_decimal(first_value(raw, "totalPrice", "packageTotalPrice", "grossAmount")),
             lines=tuple(lines),
-            cargo_tracking_number=_as_optional_str(_first(raw, "cargoTrackingNumber", "shipmentTrackingNumber")),
+            cargo_tracking_number=as_optional_str(first_value(raw, "cargoTrackingNumber", "shipmentTrackingNumber")),
         )
 
     def _to_return(self, raw: dict[str, Any], now: datetime) -> ReturnRequest:
-        status_text = str(_first(raw, "claimStatus", "status") or "").replace(" ", "").lower()
+        status_text = str(first_value(raw, "claimStatus", "status") or "").replace(" ", "").lower()
         return ReturnRequest(
-            id=str(_first(raw, "id", "claimId") or ""),
-            order_number=str(_first(raw, "orderNumber", "orderId") or ""),
+            id=str(first_value(raw, "id", "claimId") or ""),
+            order_number=str(first_value(raw, "orderNumber", "orderId") or ""),
             marketplace=self.name,
             status=_CLAIM_STATUS.get(status_text, ReturnStatus.REQUESTED),
-            reason=str(_first(raw, "claimReason", "reason", "customerClaimReason") or "belirtilmemiş"),
-            created_at=_parse_datetime(_first(raw, "claimDate", "createdDate", "createdAt"), fallback=now),
-            refund_amount=_as_decimal(_first(raw, "refundAmount", "totalPrice")),
-            product_barcode=_as_optional_str(_first(raw, "barcode", "stockCode")),
+            reason=str(first_value(raw, "claimReason", "reason", "customerClaimReason") or "belirtilmemiş"),
+            created_at=parse_datetime(first_value(raw, "claimDate", "createdDate", "createdAt"), fallback=now),
+            refund_amount=as_decimal(first_value(raw, "refundAmount", "totalPrice")),
+            product_barcode=as_optional_str(first_value(raw, "barcode", "stockCode")),
         )
 
     def _to_product(self, raw: dict[str, Any]) -> Product:
-        price = _as_decimal(_first(raw, "salePrice", "price"))
-        list_price = _first(raw, "listPrice", "marketPrice")
+        price = as_decimal(first_value(raw, "salePrice", "price"))
+        list_price = first_value(raw, "listPrice", "marketPrice")
         return Product(
-            barcode=str(_first(raw, "barcode", "stockCode") or ""),
-            title=str(_first(raw, "title", "productName") or ""),
+            barcode=str(first_value(raw, "barcode", "stockCode") or ""),
+            title=str(first_value(raw, "title", "productName") or ""),
             marketplace=self.name,
-            stock=int(_first(raw, "quantity", "stock") or 0),
+            stock=int(first_value(raw, "quantity", "stock") or 0),
             price=price,
-            list_price=_as_decimal(list_price) if list_price is not None else None,
-            updated_at=_parse_datetime(_first(raw, "lastUpdatedDate", "updatedAt"), fallback=datetime.now(tz=UTC)),
+            list_price=as_decimal(list_price) if list_price is not None else None,
+            updated_at=parse_datetime(first_value(raw, "lastUpdatedDate", "updatedAt"), fallback=datetime.now(tz=UTC)),
         )
 
     def _to_review(self, raw: dict[str, Any], now: datetime) -> Review:
         return Review(
-            id=str(_first(raw, "id", "reviewId") or ""),
-            product_barcode=str(_first(raw, "productId", "barcode", "stockCode") or ""),
-            rating=int(_first(raw, "rating", "starRating") or 1),
-            comment=str(_first(raw, "comment", "reviewText") or ""),
-            created_at=_parse_datetime(_first(raw, "createdDate", "reviewDate"), fallback=now),
-            answered=bool(_first(raw, "answered", "hasAnswer") or False),
+            id=str(first_value(raw, "id", "reviewId") or ""),
+            product_barcode=str(first_value(raw, "productId", "barcode", "stockCode") or ""),
+            rating=int(first_value(raw, "rating", "starRating") or 1),
+            comment=str(first_value(raw, "comment", "reviewText") or ""),
+            created_at=parse_datetime(first_value(raw, "createdDate", "reviewDate"), fallback=now),
+            answered=bool(first_value(raw, "answered", "hasAnswer") or False),
         )
-
-
-def _as_optional_str(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None
