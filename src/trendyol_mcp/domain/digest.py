@@ -32,12 +32,16 @@ def build_digest(adapter: MarketplaceAdapter, *, now: datetime, thresholds: Thre
     returns = adapter.list_returns(limit=200)
     products = adapter.list_products(limit=500)
     reviews = adapter.list_reviews(limit=200)
+    # Bazı pazaryerleri ürün yorumu okuma uç noktası sunmaz (örn. Hepsiburada);
+    # o durumda yorum kuralı sessizce değil, açık bir notla atlanır.
+    supports_reviews = bool(getattr(adapter, "supports_reviews", True))
 
     findings: list[Finding] = []
     findings += sla_breaches(orders, now=now, sla_hours=limits.sla_hours)
     findings += stock_alerts(products, threshold=limits.low_stock)
     findings += return_clusters(returns, now=now, min_count=limits.return_cluster_min)
-    findings += unanswered_negative_reviews(reviews, now=now, window_hours=limits.review_window_hours)
+    if supports_reviews:
+        findings += unanswered_negative_reviews(reviews, now=now, window_hours=limits.review_window_hours)
     findings += price_anomalies(products)
 
     rate = return_rate(returns, orders, now=now)
@@ -56,9 +60,17 @@ def build_digest(adapter: MarketplaceAdapter, *, now: datetime, thresholds: Thre
         )
 
     ordered = tuple(sorted(findings, key=lambda f: (_SEVERITY_ORDER[f.severity], f.code, f.title_tr)))
+    notes: tuple[str, ...] = ()
+    if not supports_reviews:
+        notes = (
+            f"{adapter.name} satıcı API'si ürün yorumlarını okumaya izin vermiyor; "
+            "cevapsız olumsuz yorum kuralı bu kaynakta atlandı.",
+            "Metrikler yalnızca sipariş, iade ve listeleme verisinden üretildi.",
+        )
     return Digest(
         generated_at=now,
         marketplace=adapter.name,
         source=adapter.name,
         findings=ordered,
+        notes=notes,
     )

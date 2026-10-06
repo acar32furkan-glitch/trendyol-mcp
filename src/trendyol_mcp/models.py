@@ -186,6 +186,7 @@ class Digest(BaseModel):
     marketplace: str
     source: str
     findings: tuple[Finding, ...]
+    notes: tuple[str, ...] = ()
 
     def count(self, severity: Severity) -> int:
         return sum(1 for f in self.findings if f.severity is severity)
