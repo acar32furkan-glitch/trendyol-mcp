@@ -92,6 +92,9 @@ değişkeninden okunur, loglanmaz. Her pazaryerinin neyi okuyabildiği (ve neyi 
 `docs/rules.md` içindeki **yetenek matrisinde**; Hepsiburada'da ürün yorumu uç noktası olmadığı için
 günlük özet bu kuralı atladığını `not:` satırıyla söyler. Ayrıntı: [SECURITY.md](SECURITY.md).
 
+Bir şey ters gittiğinde: **[docs/sorun-giderme.md](docs/sorun-giderme.md)** — 401/403/429, eksik
+kimlik bilgisi ve boş veri durumları için "belirti → neden → çözüm" tabloları ve gerçek komut çıktıları.
+
 ## Mimari
 
 ```text
