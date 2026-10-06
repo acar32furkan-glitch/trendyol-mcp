@@ -17,24 +17,39 @@ from pathlib import Path
 from typing import Any
 
 from trendyol_mcp import __version__
-from trendyol_mcp.adapters import AdapterError, FixtureAdapter, MarketplaceAdapter, TrendyolAdapter
-from trendyol_mcp.config import TrendyolCredentials, fixtures_dir
+from trendyol_mcp.adapters import (
+    AdapterError,
+    FixtureAdapter,
+    HepsiburadaAdapter,
+    MarketplaceAdapter,
+    TrendyolAdapter,
+)
+from trendyol_mcp.config import HepsiburadaCredentials, TrendyolCredentials, fixtures_dir
 from trendyol_mcp.render import render_digest_text
 from trendyol_mcp.tools import TOOL_DESCRIPTIONS, ToolProvider
 
-SOURCES = ("auto", "fixture", "trendyol")
+SOURCES = ("auto", "fixture", "trendyol", "hepsiburada")
 
 
 def resolve_adapter(source: str, fixtures: Path | None = None) -> MarketplaceAdapter:
-    """Pick an adapter: explicit choice wins, ``auto`` prefers live credentials."""
+    """Pick an adapter: explicit choice wins, ``auto`` prefers live credentials.
+
+    ``auto`` sırası Trendyol → Hepsiburada → örnek veri. Böylece satıcı yalnızca bir
+    pazaryerinin anahtarını tanımladıysa doğru kaynak kendiliğinden seçilir.
+    """
     directory = fixtures or fixtures_dir()
     if source == "fixture":
         return FixtureAdapter(directory)
     if source == "trendyol":
         return TrendyolAdapter(TrendyolCredentials.from_env())
-    credentials = TrendyolCredentials.from_env()
-    if credentials is not None:
-        return TrendyolAdapter(credentials)
+    if source == "hepsiburada":
+        return HepsiburadaAdapter(HepsiburadaCredentials.from_env())
+    trendyol = TrendyolCredentials.from_env()
+    if trendyol is not None:
+        return TrendyolAdapter(trendyol)
+    hepsiburada = HepsiburadaCredentials.from_env()
+    if hepsiburada is not None:
+        return HepsiburadaAdapter(hepsiburada)
     return FixtureAdapter(directory)
 
 
@@ -106,6 +121,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     provider = _provider(args)
     adapter = provider.adapter
     credentials = TrendyolCredentials.from_env()
+    hepsiburada_credentials = HepsiburadaCredentials.from_env()
     orders = adapter.list_orders(limit=500)
     returns = adapter.list_returns(limit=500)
     products = adapter.list_products(limit=500)
@@ -114,6 +130,11 @@ def cmd_check(args: argparse.Namespace) -> int:
         "surum": __version__,
         "aktif_kaynak": adapter.name,
         "canli_kimlik_bilgisi": "var" if credentials else "yok (fixture kaynağı kullanılıyor)",
+        "kimlik_bilgileri": {
+            "trendyol": "var" if credentials else "yok",
+            "hepsiburada": "var" if hepsiburada_credentials else "yok",
+        },
+        "yorum_okuma": "destekli" if adapter.supports_reviews else "bu pazaryerinde uç nokta yok",
         "ornek_veri_klasoru": str(fixtures_dir()),
         "kayit_sayilari": {
             "siparis": len(orders),
@@ -130,6 +151,12 @@ def cmd_check(args: argparse.Namespace) -> int:
     print(f"trendyol-mcp {__version__}")
     print(f"  aktif kaynak      : {report['aktif_kaynak']}")
     print(f"  canlı kimlik      : {report['canli_kimlik_bilgisi']}")
+    print(
+        "  kimlik bilgileri  : "
+        f"trendyol {report['kimlik_bilgileri']['trendyol']}, "
+        f"hepsiburada {report['kimlik_bilgileri']['hepsiburada']}"
+    )
+    print(f"  yorum okuma       : {report['yorum_okuma']}")
     print(f"  örnek veri        : {report['ornek_veri_klasoru']}")
     print(f"  değerlendirme anı : {report['degerlendirme_zamani']}")
     print("  kayıtlar          : " + ", ".join(f"{k} {v}" for k, v in counts.items()))
