@@ -17,6 +17,10 @@ jobs:
   quality:
     name: lint · types · tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    # Matris yorumlayıcısını uv'ye sabitliyoruz: aksi hâlde `uv sync`/`uv run` .python-version'a
+    # dönüp venv'i yeniden kurar ve "3.13" işi sessizce 3.12 koşar.
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
     strategy:
       fail-fast: false
       matrix:
@@ -29,11 +33,13 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
       - name: Install the project
         run: uv sync --all-extras --dev
+
+      - name: Kurulan yorumlayıcıyı doğrula
+        run: |
+          uv run python -c "import sys; v=f'{sys.version_info[0]}.{sys.version_info[1]}'; assert v == '${{ matrix.python-version }}', f'beklenen ${{ matrix.python-version }}, gelen {v}'; print('python', v)"
+          uv run ruff --version
 
       - name: Ruff (lint)
         run: uv run ruff check --output-format=github .
@@ -64,7 +70,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - run: uv sync --extra dev
+      - run: uv sync --dev
       - name: Sunucu kimlik bilgisi olmadan da çalışmalı
         run: |
           uv run trendyol-mcp check
