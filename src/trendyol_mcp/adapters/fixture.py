@@ -75,6 +75,7 @@ class FixtureAdapter:
     """Read-only adapter over a bundled sample dataset."""
 
     name = "fixture"
+    supports_reviews = True
 
     def __init__(self, root: Path) -> None:
         self._root = root

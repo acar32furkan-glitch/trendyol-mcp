@@ -26,6 +26,7 @@ class MarketplaceAdapter(Protocol):
     """Minimal read surface used by every tool."""
 
     name: str
+    supports_reviews: bool
 
     @property
     def reference_time(self) -> datetime:
