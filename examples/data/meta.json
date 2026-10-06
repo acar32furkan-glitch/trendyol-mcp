@@ -1,0 +1,5 @@
+{
+  "marketplace": "trendyol (örnek veri)",
+  "reference_time": "2026-10-05T09:00:00+03:00",
+  "note": "Bu klasördeki veriler anonimleştirilmiştir: gerçek müşteri adı, sipariş numarası ve barkod içermez. Sunucunun (SLA, stok, iade, yorum kurallarının) çalıştığını kimlik bilgisi olmadan göstermek için tasarlandı. `trendyol-mcp demo` bu dosyaları okur."
+}

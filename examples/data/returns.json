@@ -1,0 +1,52 @@
+[
+  {
+    "id": "R-2001",
+    "order_number": "TY-1010",
+    "marketplace": "trendyol",
+    "status": "refunded",
+    "reason": "Beden uyumsuz",
+    "created_at": "2026-09-30T10:00:00+03:00",
+    "refund_amount": 449.90,
+    "product_barcode": "P-3006"
+  },
+  {
+    "id": "R-2002",
+    "order_number": "TY-1011",
+    "marketplace": "trendyol",
+    "status": "approved",
+    "reason": "Beden uyumsuz",
+    "created_at": "2026-10-01T12:30:00+03:00",
+    "refund_amount": 289.00,
+    "product_barcode": "P-3002"
+  },
+  {
+    "id": "R-2003",
+    "order_number": "TY-1007",
+    "marketplace": "trendyol",
+    "status": "requested",
+    "reason": "Beden uyumsuz",
+    "created_at": "2026-10-03T09:15:00+03:00",
+    "refund_amount": 512.50,
+    "product_barcode": "P-3003"
+  },
+  {
+    "id": "R-2004",
+    "order_number": "TY-1008",
+    "marketplace": "trendyol",
+    "status": "approved",
+    "reason": "Kargo hasarı",
+    "created_at": "2026-10-02T15:45:00+03:00",
+    "refund_amount": 199.90,
+    "product_barcode": "P-3004"
+  },
+  {
+    "id": "R-2005",
+    "order_number": "TY-1005",
+    "marketplace": "trendyol",
+    "status": "requested",
+    "reason": "Ürün eksik",
+    "created_at": "2026-10-04T08:20:00+03:00",
+    "refund_amount": 120.00,
+    "product_barcode": "P-3008"
+  }
+]
