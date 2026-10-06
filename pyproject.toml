@@ -1,0 +1,91 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trendyol-mcp"
+version = "0.1.0"
+description = "Read-only Model Context Protocol (MCP) server for Turkish marketplaces: orders, returns, stock, SLA and a daily Turkish action digest."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "acar32furkan-glitch", email = "284462468+acar32furkan-glitch@users.noreply.github.com" }]
+keywords = ["mcp", "model-context-protocol", "trendyol", "hepsiburada", "e-commerce", "marketplace", "ai-agents", "cli"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Office/Business :: Financial :: Point-Of-Sale",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
+dependencies = [
+  "mcp>=1.2.0",
+  "httpx>=0.27",
+  "pydantic>=2.9",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "respx>=0.21",
+  "ruff>=0.7",
+  "mypy>=1.13",
+]
+
+[project.scripts]
+trendyol-mcp = "trendyol_mcp.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/acar32furkan-glitch/trendyol-mcp"
+Issues = "https://github.com/acar32furkan-glitch/trendyol-mcp/issues"
+Changelog = "https://github.com/acar32furkan-glitch/trendyol-mcp/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trendyol_mcp"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "DTZ", "T20", "SIM", "PTH", "RUF", "S"]
+# RUF001/002/003: kullanıcıya dönük metinler Türkçe yazılır; 'ı' ve 'İ' kullanımı bilinçli tercihtir.
+ignore = ["S101", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "T20"]
+"scripts/*" = ["T20"]
+"src/trendyol_mcp/cli.py" = ["T201"]  # komut satırı aracı: çıktı doğrudan stdout'a yazılır
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests", "scripts"]
+mypy_path = "src"
+warn_unreachable = true
+disallow_any_generics = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = ["respx.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers --strict-config"
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["integration: starts the MCP server in a subprocess"]
+
+[tool.coverage.run]
+source = ["src/trendyol_mcp"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
