@@ -67,6 +67,7 @@ flowchart TD
 |-------|---------|-------|
 | Salt okunur adaptör arayüzü | Kaza eseri veri değişikliğini mimari olarak imkânsız kılmak | ADR-0001 |
 | Örnek veri adaptörü birinci sınıf vatandaş | Kimlik bilgisi olmadan değerlendirme, tekrarlanabilir demo/test | ADR-0002 |
+| Yalnızca stdio taşıması | Kimlik bilgisini istemcinin başlattığı süreçte tutmak; dinlenen port ve ağ yetkilendirme yüzeyi açmamak | ADR-0003 |
 | Zamanın enjekte edilmesi | "Dün gece çalıştı, bugün çalışmıyor" sınıfı hataları testlerde yakalamak | — |
 | Kural ve metnin ayrılması | Aynı bulgunun CLI/MCP/e-posta çıktılarında farklılaşmaması | — |
 
