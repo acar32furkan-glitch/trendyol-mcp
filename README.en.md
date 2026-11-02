@@ -111,7 +111,8 @@ adapters/  →  domain/  →  tools.py  →  server.py (MCP)  ·  cli.py (termin
   `adapters/parsing.py`, so adding a marketplace is a single-file change.
 - `domain/` holds pure functions; every rule takes an explicit `now`, which keeps tests deterministic.
 - `render.py` turns findings into Turkish text; the CLI and MCP print the **same** wording.
-- Diagram and rationale: [docs/architecture.md](docs/architecture.md) · decision records: [docs/adr/](docs/adr/)
+- Diagram and rationale: [docs/architecture.md](docs/architecture.md) · decision records: [docs/adr/](docs/adr/) ·
+  tool schemas as an agent sees them: [docs/mcp-arac-semalari.md](docs/mcp-arac-semalari.md)
 
 ## Quality
 

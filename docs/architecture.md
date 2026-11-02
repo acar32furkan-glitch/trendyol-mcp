@@ -89,3 +89,6 @@ src/trendyol_mcp/
 - **Yeni pazaryeri:** `adapters/<isim>.py` + `adapters/__init__.py` dışa açımı.
 - **Yeni kural:** `domain/<konu>.py` içinde saf fonksiyon + `digest.py` içinde çağrı + `docs/rules.md` kaydı.
 - **Yeni yüzey:** `render.py` biçimlendiricisi eklemek yeterli (e-posta/Slack planı için bkz. yol haritası).
+- **MCP araç sözleşmesi:** ajanın `tools/list` içinde gerçekte ne gördüğü, şemanın ne taşımadığı ve
+  ölçülmüş sonuçları: [mcp-arac-semalari.md](mcp-arac-semalari.md) (şemayı yazdıran betik:
+  `scripts/mcp_tool_schemas.py`).
