@@ -26,6 +26,18 @@ Bu dosya [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) biçimini izle
 - `render_digest_text` sürüm numarasını artık `__version__` üzerinden okur (elle yazılmıyor).
 - Trendyol adaptörünün taşıma/kimlik hatası mesajları ortak politika metnine taşındı.
 
+### Düzeltildi
+- Hepsiburada adaptörü, sağlayıcının aralık dışı değer gönderdiği kayıtlarda (negatif `totalPrice`,
+  `price`, `refundAmount`, `availableStock`) artık pydantic izi yerine kaydı, alanı ve değeri
+  adlandıran tek satırlık `AdapterError` üretiyor (`hata: …` + çıkış kodu 1). Değer tahmin edilerek
+  düzeltilmiyor: negatif tutarı sıfıra çekmek ciro rakamını uydurmak olurdu.
+- Hepsiburada yanıtı kayıt listesi yerine başka bir tip taşıdığında (`{"data": "boom"}`) ya da
+  sarmalayıcı tanınmadığında (`{"data": {"orders": []}}`) boş liste dönmüyor, koşu duruyor. Önceden
+  bu iki durum "sipariş yok" sayılıyor ve günlük özet yanlışlıkla "aksiyon gerektiren bir şey yok"
+  diyordu.
+- 20 yeni test (toplam 104): bozuk alan tipleri, negatif değerler, tanınmayan sarmalayıcı, bozuk JSON
+  gövdesi (yeniden denenmez), `500` sonrası başarı ve zaman aşımı (başarı/3 denemede pes etme).
+
 ### Planlanan
 - Günlük özeti e-posta veya Slack webhook'una gönderme (v0.2.0).
 - Hepsiburada adaptörünün canlı satıcı hesabıyla doğrulanması (uç nokta/alan adı sapmalarını görme).

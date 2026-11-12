@@ -119,10 +119,11 @@ adapters/  →  domain/  →  tools.py  →  server.py (MCP)  ·  cli.py (termin
 ```bash
 uv run ruff check . && uv run ruff format --check .
 uv run mypy                              # strict, package + tests + scripts
-uv run pytest --cov=trendyol_mcp         # 84 tests, ~91% coverage
+uv run pytest --cov=trendyol_mcp         # 104 tests, ~93% coverage
 ```
 
-- **84 tests**: rule boundaries (exact 48/72-hour edges), HTTP mapping for both marketplaces (`respx`),
+- **104 tests**: rule boundaries (exact 48/72-hour edges), HTTP mapping plus failure scenarios for both
+  marketplaces (`respx`: bad field types, unknown wrappers, 500-then-success, timeouts),
   the CLI contract, and a **real MCP round trip over stdio** (`tests/test_server_mcp.py`: handshake →
   `tools/list` → `tools/call`).
 - CI: Python 3.12 and 3.13 · ruff · ruff format · mypy strict · pytest · credential-free CLI smoke test.

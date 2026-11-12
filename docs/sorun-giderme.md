@@ -36,6 +36,8 @@ kural motorunda değil.
 | `hata: … 3 denemede başarısız oldu: … HTTP 429` | Hız sınırı (rate limit) | Bekleyin, tarih penceresini/liste boyunu daraltın → [4](#4-http-429--hız-sınırı) |
 | `Bulgu: 0 … Bugün aksiyon gerektiren bir şey yok.` | Okunacak kayıt yok ya da gerçekten sorun yok | Hata değildir; `check` ile kayıt sayılarını doğrulayın → [5](#5-boş-veri-bulgu-yok) |
 | `not: … ürün yorumlarını okumaya izin vermiyor…` | Uç nokta yok (Hepsiburada yorumları) | Beklenen davranış; `not:` satırı bunu bildirir → [6](#6-uç-nokta-yok-not-satırı) |
+| `hata: Hepsiburada … kaydı normalleştirilemedi (…)` | Sağlayıcı aralık dışı değer gönderdi (negatif tutar, negatif stok, adet `-1`) | Kaydı panelde kontrol edin; araç değeri **tahmin ederek düzeltmez** → [8](#8-hepsiburada-yanıtı-beklenen-biçimde-değil) |
+| `hata: Hepsiburada … yanıtı kayıt listesi yerine str taşıyor` / `sarmalayıcı nesne tanınmadı` | Alan adı sapması; boş liste saymak yanlış "her şey yolunda" raporu üretirdi | Görülen anahtarı tercih listesine ekleyin → [8](#8-hepsiburada-yanıtı-beklenen-biçimde-değil) |
 | `hata: Fixture dosyası yok…` / `şemaya uymuyor…` | Örnek veri klasörü bozuk/eksik | `--fixtures` yolunu ve dosyaları düzeltin → [7](#7-örnek-veri-bozuk-veya-eksik) |
 
 ---
@@ -194,6 +196,65 @@ hata: orders.json şemaya uymuyor: 7 hata
 tanımlayın. Şema hatasında eksik/yanlış alanları düzeltin; şema sözleşmesi için
 `tests/factories.py` ve `examples/data/` referanstır. Şema hatası **tahmin edilerek yutulmaz** —
 sessizce boş liste döndürmek yanlış bir "her şey yolunda" raporu üretirdi.
+
+## 8) Hepsiburada yanıtı beklenen biçimde değil
+
+**Belirti.** Üç ayrı ses, üç ayrı neden — hepsi kod 1 ile biter ve hiçbiri ham Python izi değildir.
+Aşağıdaki çıktılar `127.0.0.1:8791` üzerinde tek kullanımlık bir sahte sunucuyla, gerçek CLI
+koşularak alındı (`HEPSIBURADA_ORDERS_BASE_URL` / `HEPSIBURADA_LISTING_BASE_URL` o sunucuya
+yönlendirildi):
+
+```console
+# (a) sağlayıcı aralık dışı tutar gönderdi: totalPrice = -10
+$ trendyol-mcp --source hepsiburada check
+hata: Hepsiburada sipariş kaydı normalleştirilemedi (HB-2026-0042): total_price = Decimal('-10.00') geçersiz. Sağlayıcı beklenen aralığın dışında bir değer gönderdi; tahmin edilerek düzeltilmedi.
+$ echo $?
+1
+
+# (b) listeleme yanıtı kayıt listesi yerine metin taşıyor: {"data": "boom"}
+$ trendyol-mcp --source hepsiburada check
+hata: Hepsiburada listeleme yanıtı kayıt listesi yerine str taşıyor; boş sonuç sayılmadı.
+$ echo $?
+1
+
+# (c) tanınmayan sarmalayıcı: {"data": {"orders": []}}
+$ trendyol-mcp --source hepsiburada check
+hata: Hepsiburada listeleme yanıtındaki sarmalayıcı nesne tanınmadı (görülen anahtarlar: orders); kayıt listesi okunamadı. Boş sonuç sayılmadı.
+$ echo $?
+1
+```
+
+**Neden.** Normalize modeller sağlayıcı verisini doğrular (`quantity >= 0`, `unit_price >= 0`,
+`stock >= 0`). Sağlayıcı bu aralığın dışında bir değer gönderirse — Hepsiburada'da iade/düzeltme
+satırlarında negatif tutar, aşırı satışta negatif stok görülebilir — pydantic doğrulaması devreye
+giriyordu ve kullanıcı `hata:` satırı yerine **ham Python izi** görüyordu (ölçüldü: aynı yanıt
+düzeltmeden önce `Traceback (most recent call last) … cli.py:125 in cmd_check` ile düşüyordu).
+Aynı sınıftan iki sessiz hata daha vardı: `{"data": "boom"}` ve `{"data": {"orders": []}}` **boş
+liste** sayılıyordu; özet "Bugün aksiyon gerektiren bir şey yok" diyordu — yani veri okunamadığı
+için değil, okunamadığı hâlde "her şey yolunda" denildiği için yanlış bir rapor üretiliyordu.
+
+**Çözüm.** Üç davranış 2026-11-12'de düzeltildi (`src/trendyol_mcp/adapters/hepsiburada.py`):
+
+* kayıt eşlemesi `ValidationError`'ı yakalar ve kaydı + alanı + değeri adlandıran tek cümleye
+  çevirir (`… kaydı normalleştirilemedi (HB-2026-0042): total_price = Decimal('-10.00') geçersiz`);
+  değer **tahmin edilerek düzeltilmez** — negatif tutarı sıfıra çekmek ciro rakamını uydurmak olurdu;
+* kayıt listesi yerine başka bir tip gelirse koşu durur (boş sonuç sayılmaz);
+* tanınmayan sarmalayıcıda mesaj görülen anahtarları yazar; düzeltme `_WRAPPER_KEYS` tercih
+  listesine bir anahtar eklemekten ibarettir.
+
+Sizin yapacağınız: mesajdaki kaydı panelde açıp değerin gerçekten öyle olup olmadığına bakın.
+Gerçekten negatifse (iade/düzeltme satırı) bu araç bilinçli olarak durur; veri düzeltildikten sonra
+aynı komut sorunsuz koşar. Bu üç yol
+`tests/test_hepsiburada_adapter.py` içinde `test_negatif_tutar_traceback_yerine_turkce_hata_verir`,
+`test_kayit_listesi_yerine_metin_gelirse_sessiz_bos_donmez` ve
+`test_taninmayan_sarmalayici_gorulen_anahtarlari_soyler` ile sabitlenmiştir.
+
+**Aynı bölümde ölçülen, düzeltilmeyen iki sınır.** (1) `items` alanı yanlış tipte gelirse satırlar
+atlanır, sipariş korunur — tek bir bozuk satır yüzünden günün tamamını kaybetmemek bilinçli tercih.
+(2) Sayısal olmayan tutar (`"on TL"`) `as_decimal` ortak yardımcısında `0`'a düşer; liste fiyatı
+doluysa kural motoru bunu "%100 indirim" olarak okuyor — ölçüldü:
+`INDIRIM_ANORMAL · Olağandışı indirim (%100) · Liste 349.90 TL → satış 0.00 TL`. Bu ikincisi iki
+adaptörü birden ilgilendirdiği için ayrı bir iş olarak kuyruğa alındı (`tm-07`).
 
 ## Çıkış kodları
 

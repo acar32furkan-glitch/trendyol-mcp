@@ -293,3 +293,205 @@ def test_yardimci_donusumler_saglam() -> None:
     assert parse_datetime("2026-10-05T09:00:00", fallback=now).hour == 9
     assert parse_datetime("bozuk", fallback=now) == now
     assert parse_datetime(1759654800, fallback=now).year == 2025  # saniye
+
+
+# --------------------------------------------------------------------------- bozuk yanıt biçimleri
+@respx.mock
+def test_eksik_items_satirsiz_siparis_korunur() -> None:
+    """`items` hiç gelmezse sipariş yine de okunur; satır uydurulmaz."""
+    respx.get(f"{OMS}/orders").mock(
+        return_value=httpx.Response(200, json={"data": [{"orderNumber": "HB-1", "status": "Open", "totalPrice": 12}]})
+    )
+    with make_adapter() as adapter:
+        orders = adapter.list_orders(limit=5)
+    assert len(orders) == 1
+    assert orders[0].lines == ()
+    assert orders[0].total_price == as_decimal("12")
+
+
+@respx.mock
+@pytest.mark.parametrize("items", [{"merchantSku": "X"}, "yok", 5, None, [1, "iki", None]])
+def test_beklenmeyen_items_tipi_kosuyu_dusurmez(items: object) -> None:
+    """`items` yanlış tipte gelirse satırlar atlanır, sipariş korunur (çökme yok)."""
+    respx.get(f"{OMS}/orders").mock(
+        return_value=httpx.Response(
+            200,
+            json={"data": [{"orderNumber": "HB-2", "status": "Open", "totalPrice": "10,50", "items": items}]},
+        )
+    )
+    with make_adapter() as adapter:
+        orders = adapter.list_orders(limit=5)
+    assert [order.order_number for order in orders] == ["HB-2"]
+    assert orders[0].lines == ()
+    assert orders[0].total_price == as_decimal("10.50")
+
+
+@respx.mock
+def test_metin_sayilar_okunur_sayisal_olmayan_adet_satiri_dusurur() -> None:
+    """'2' ve '349,90' okunur; 'üç' adet 0 sayılıp satır atlanır (sıfır adet iş yapmaz)."""
+    payload = {
+        "data": [
+            {
+                "orderNumber": "HB-3",
+                "status": "Open",
+                "totalPrice": "349,90",
+                "items": [
+                    {"merchantSku": "A", "quantity": "2", "price": "349,90"},
+                    {"merchantSku": "B", "quantity": "üç", "price": 1},
+                    {"merchantSku": "C", "quantity": True, "price": 1},
+                ],
+            }
+        ]
+    }
+    respx.get(f"{OMS}/orders").mock(return_value=httpx.Response(200, json=payload))
+    with make_adapter() as adapter:
+        orders = adapter.list_orders(limit=5)
+    order = orders[0]
+    assert order.total_price == as_decimal("349.90")
+    assert [line.barcode for line in order.lines] == ["A"]
+    assert order.lines[0].quantity == 2
+
+
+@respx.mock
+def test_negatif_tutar_traceback_yerine_turkce_hata_verir() -> None:
+    """Aralık dışı tutar pydantic izi değil, kaydı ve alanı adlandıran AdapterError üretir."""
+    payload = {"data": [{"orderNumber": "HB-4", "status": "Open", "totalPrice": -10, "items": []}]}
+    respx.get(f"{OMS}/orders").mock(return_value=httpx.Response(200, json=payload))
+    with make_adapter() as adapter, pytest.raises(AdapterError) as caught:
+        adapter.list_orders(limit=5)
+    message = str(caught.value)
+    assert "sipariş kaydı normalleştirilemedi (HB-4)" in message
+    assert "total_price" in message
+    assert "-10" in message
+    assert "tahmin edilerek düzeltilmedi" in message
+    assert "gizli-anahtar" not in message  # anahtar değeri mesaja sızmaz
+
+
+@respx.mock
+def test_negatif_satir_fiyati_ve_stok_reddedilir() -> None:
+    order_payload = {
+        "data": [
+            {
+                "orderNumber": "HB-5",
+                "status": "Open",
+                "totalPrice": 10,
+                "items": [{"merchantSku": "X", "quantity": 1, "price": -5}],
+            }
+        ]
+    }
+    respx.get(f"{OMS}/orders").mock(return_value=httpx.Response(200, json=order_payload))
+    with make_adapter() as adapter, pytest.raises(AdapterError, match="unit_price"):
+        adapter.list_orders(limit=5)
+
+    product_payload = {"data": [{"merchantSku": "X", "productName": "Ürün", "price": 10, "availableStock": -3}]}
+    respx.get(f"{LISTING}/listings/merchantid/42").mock(return_value=httpx.Response(200, json=product_payload))
+    with make_adapter() as adapter, pytest.raises(AdapterError, match="stock"):
+        adapter.list_products(limit=5)
+
+
+@respx.mock
+def test_negatif_iade_tutari_reddedilir() -> None:
+    payload = {"data": [{"id": "R-9", "orderNumber": "HB-6", "status": "Accepted", "refundAmount": -1}]}
+    respx.get(f"{OMS}/returns").mock(return_value=httpx.Response(200, json=payload))
+    with make_adapter() as adapter, pytest.raises(AdapterError) as caught:
+        adapter.list_returns(limit=5)
+    assert "iade kaydı" in str(caught.value)
+    assert "R-9" in str(caught.value)
+
+
+@respx.mock
+def test_kayit_listesi_yerine_metin_gelirse_sessiz_bos_donmez() -> None:
+    """Eskiden `{"data": "boom"}` boş liste sayılıyordu → yanlış 'her şey yolunda' raporu."""
+    respx.get(f"{OMS}/orders").mock(return_value=httpx.Response(200, json={"data": "boom"}))
+    with make_adapter() as adapter, pytest.raises(AdapterError, match="kayıt listesi yerine str"):
+        adapter.list_orders(limit=5)
+
+
+@respx.mock
+def test_taninmayan_sarmalayici_gorulen_anahtarlari_soyler() -> None:
+    respx.get(f"{OMS}/orders").mock(return_value=httpx.Response(200, json={"data": {"orders": []}}))
+    with make_adapter() as adapter, pytest.raises(AdapterError) as caught:
+        adapter.list_orders(limit=5)
+    assert "sarmalayıcı nesne tanınmadı" in str(caught.value)
+    assert "orders" in str(caught.value)
+
+
+@respx.mock
+def test_gecersiz_json_yeniden_denenmez_ve_anlasilir_hata_verir() -> None:
+    route = respx.get(f"{OMS}/orders").mock(return_value=httpx.Response(200, text="<html>bozuk</html>"))
+    with make_adapter() as adapter, pytest.raises(AdapterError, match="JSON olarak çözülemedi"):
+        adapter.list_orders(limit=5)
+    assert route.call_count == 1  # bozuk gövde geçici sayılmaz: beklemek düzeltmez
+
+
+@respx.mock
+def test_json_kok_dizisi_reddedilir() -> None:
+    respx.get(f"{OMS}/orders").mock(return_value=httpx.Response(200, json=[{"orderNumber": "HB-7"}]))
+    with make_adapter() as adapter, pytest.raises(AdapterError, match="beklenmeyen yanıt tipi"):
+        adapter.list_orders(limit=5)
+
+
+# --------------------------------------------------------------------------- geçici hata / zaman aşımı
+@respx.mock
+def test_500_sonrasi_basarili_deneme() -> None:
+    """500 geçici sayılır: ikinci deneme başarılıysa koşu kesilmez."""
+    route = respx.get(f"{OMS}/orders")
+    route.side_effect = [
+        httpx.Response(500, json={}),
+        httpx.Response(200, json={"data": [{"orderNumber": "HB-8", "status": "Delivered"}]}),
+    ]
+    with make_adapter() as adapter:
+        orders = adapter.list_orders(limit=5)
+    assert [order.order_number for order in orders] == ["HB-8"]
+    assert orders[0].status is OrderStatus.DELIVERED
+    assert route.call_count == 2
+
+
+@respx.mock
+def test_zaman_asimi_sonrasi_basarili_deneme() -> None:
+    """ReadTimeout ağ hatasıdır: geri çekilip yeniden denenir."""
+    route = respx.get(f"{LISTING}/listings/merchantid/42")
+    route.side_effect = [
+        httpx.ReadTimeout("zaman aşımı"),
+        httpx.Response(
+            200, json={"data": [{"merchantSku": "X", "productName": "Ürün", "price": 5, "availableStock": 1}]}
+        ),
+    ]
+    with make_adapter() as adapter:
+        products = adapter.list_products(limit=5)
+    assert [product.barcode for product in products] == ["X"]
+    assert route.call_count == 2
+
+
+@respx.mock
+def test_zaman_asimi_denemeleri_tukenince_pes_eder() -> None:
+    route = respx.get(f"{OMS}/orders").mock(side_effect=httpx.ConnectTimeout("bağlantı zaman aşımı"))
+    with make_adapter() as adapter, pytest.raises(AdapterError, match="3 denemede başarısız oldu"):
+        adapter.list_orders(limit=5)
+    assert route.call_count == 3
+
+
+@respx.mock
+def test_kayit_dizisi_yoksa_bos_sonuc_hata_degildir() -> None:
+    """Ne `data` ne `items`: sözleşmede yok sayılan boş yanıt (hata üretmez)."""
+    respx.get(f"{OMS}/orders").mock(return_value=httpx.Response(200, json={"meta": {"page": 0}}))
+    with make_adapter() as adapter:
+        assert adapter.list_orders(limit=5) == []
+
+
+@respx.mock
+def test_kimliksiz_kayit_da_okunur_etiketle_bildirilir() -> None:
+    """Kaydın hiç kimliği yoksa hata mesajı bunu saklamaz."""
+    payload = {"data": [{"status": "Open", "totalPrice": -1}]}
+    respx.get(f"{OMS}/orders").mock(return_value=httpx.Response(200, json=payload))
+    with make_adapter() as adapter, pytest.raises(AdapterError, match="kimliksiz kayıt"):
+        adapter.list_orders(limit=5)
+
+
+@respx.mock
+def test_yerel_saat_dilimi_olmayan_tarih_utcye_cevrilir() -> None:
+    route = respx.get(f"{OMS}/orders").mock(return_value=httpx.Response(200, json={"data": []}))
+    with make_adapter() as adapter:
+        adapter.list_orders(since=datetime.fromisoformat("2026-11-12T03:00:00"))  # saat dilimi yok: UTC varsayılır
+    begin = route.calls.last.request.url.params["beginDate"]
+    assert begin == "2026-11-12T03:00:00Z"  # naive değer UTC varsayılır, Z ile gönderilir

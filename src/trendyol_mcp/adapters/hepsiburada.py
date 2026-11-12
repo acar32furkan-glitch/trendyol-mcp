@@ -17,12 +17,15 @@ bilgisiyle okur. "Hepsiburada" ilgili şirketin markasıdır.
 from __future__ import annotations
 
 import base64
+from collections.abc import Callable
 from datetime import UTC, date, datetime, time
-from typing import Any, Final
+from functools import partial
+from typing import Any, Final, TypeVar
 
 import httpx
+from pydantic import ValidationError
 
-from trendyol_mcp.adapters.base import NotConfiguredError
+from trendyol_mcp.adapters.base import AdapterError, NotConfiguredError
 from trendyol_mcp.adapters.http import USER_AGENT, request_json
 from trendyol_mcp.adapters.parsing import (
     as_decimal,
@@ -91,14 +94,54 @@ def _iso(value: date | datetime | None, *, end_of_day: bool = False) -> str | No
     return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _items(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return the record list regardless of the wrapper key the endpoint used."""
-    raw = first_value(payload, "data", "items", "content", "listings") or []
-    if isinstance(raw, dict):  # {"data": {"listings": [...]}}
-        raw = first_value(raw, "listings", "items", "content", "data") or []
-    if not isinstance(raw, list):
+_WRAPPER_KEYS: Final[tuple[str, ...]] = ("data", "items", "content", "listings")
+_LABEL_KEYS: Final[dict[str, tuple[str, ...]]] = {
+    "sipariş": ("orderNumber", "orderId", "id"),
+    "iade": ("claimId", "returnId", "id", "orderNumber"),
+    "listeleme": ("merchantSku", "hepsiburadaSku", "barcode", "sku"),
+}
+
+_RecordT = TypeVar("_RecordT")
+
+
+def _items(payload: dict[str, Any], kind: str) -> list[dict[str, Any]]:
+    """Return the record list regardless of the wrapper key the endpoint used.
+
+    Sarmalayıcı tanınmıyorsa ya da kayıt listesi yerine başka bir tip geliyorsa **hata
+    verilir**: ``[]`` döndürmek "sipariş yok" raporu üretir ve bu, sessiz bir yanlış
+    "her şey yolunda" demektir. Bilinmeyen sarmalayıcı mesajı görülen anahtarları yazar,
+    böylece düzeltme aşağıdaki tercih listesine bir anahtar eklemekten ibarettir.
+    """
+    raw = first_value(payload, *_WRAPPER_KEYS)
+    if raw is None:  # kayıt dizisi hiç yok: boş sonuç (belgelenmiş davranış)
         return []
+    if isinstance(raw, dict):  # {"data": {"listings": [...]}}
+        nested = first_value(raw, *_WRAPPER_KEYS)
+        if nested is None:
+            seen = ", ".join(sorted(raw)) or "yok"
+            raise AdapterError(
+                f"Hepsiburada {kind} yanıtındaki sarmalayıcı nesne tanınmadı (görülen anahtarlar: {seen}); "
+                "kayıt listesi okunamadı. Boş sonuç sayılmadı."
+            )
+        raw = nested
+    if not isinstance(raw, list):
+        raise AdapterError(
+            f"Hepsiburada {kind} yanıtı kayıt listesi yerine {type(raw).__name__} taşıyor; boş sonuç sayılmadı."
+        )
     return [item for item in raw if isinstance(item, dict)]
+
+
+def _record_label(raw: dict[str, Any], kind: str) -> str:
+    """Human-readable record identifier used in error messages.
+
+    Kayıt türüne göre öncelik değişir: satıcı siparişi ``orderNumber`` ile, iade talebini
+    ``claimId`` ile tanır. Etiket, mesajı okuyan kişinin kaydı panelde bulmasını sağlar.
+    """
+    for key in _LABEL_KEYS.get(kind, ("id",)):
+        value = raw.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return "kimliksiz kayıt"
 
 
 class HepsiburadaAdapter:
@@ -168,6 +211,28 @@ class HepsiburadaAdapter:
             backoff_seconds=self._backoff,
         )
 
+    @staticmethod
+    def _map_record(mapper: Callable[[dict[str, Any]], _RecordT], raw: dict[str, Any], kind: str) -> _RecordT:
+        """Map one provider record, turning schema violations into ``AdapterError``.
+
+        Model alanları (``quantity >= 0``, ``unit_price >= 0`` …) sağlayıcı verisini
+        doğrular. Sağlayıcı aralık dışı bir değer gönderirse pydantic ``ValidationError``
+        fırlatır ve CLI'de ``hata:`` satırı yerine ham Python izi görünür (kullanıcıya
+        eyleme dönük bilgi vermez). Burada hata tek bir Türkçe cümleye çevrilir: hangi
+        kayıt, hangi alan, hangi değer. Değer **tahmin edilerek düzeltilmez** — negatif
+        tutarı sıfıra çekmek ciro rakamını uydurmak olurdu.
+        """
+        try:
+            return mapper(raw)
+        except ValidationError as exc:
+            first = exc.errors()[0]
+            field = ".".join(str(part) for part in first["loc"]) or "kayıt"
+            raise AdapterError(
+                f"Hepsiburada {kind} kaydı normalleştirilemedi ({_record_label(raw, kind)}): "
+                f"{field} = {first['input']!r} geçersiz. Sağlayıcı beklenen aralığın dışında bir değer "
+                "gönderdi; tahmin edilerek düzeltilmedi."
+            ) from exc
+
     # ------------------------------------------------------------------ reads
     def list_orders(
         self,
@@ -185,7 +250,8 @@ class HepsiburadaAdapter:
         }
         payload = self._fetch(self._orders_client, "/orders", params)
         now = self.reference_time
-        orders = [self._to_order(item, now) for item in _items(payload)]
+        mapper = partial(self._to_order, now=now)
+        orders = [self._map_record(mapper, item, "sipariş") for item in _items(payload, "sipariş")]
         if status is not None:
             orders = [order for order in orders if order.status is status]
         return orders[:limit]
@@ -200,7 +266,8 @@ class HepsiburadaAdapter:
         }
         payload = self._fetch(self._orders_client, "/returns", params)
         now = self.reference_time
-        return [self._to_return(item, now) for item in _items(payload)][:limit]
+        mapper = partial(self._to_return, now=now)
+        return [self._map_record(mapper, item, "iade") for item in _items(payload, "iade")][:limit]
 
     def list_products(self, *, limit: int = 500) -> list[Product]:
         params: dict[str, Any] = {"page": 0, "size": min(limit, 200)}
@@ -209,7 +276,7 @@ class HepsiburadaAdapter:
             f"/listings/merchantid/{self._credentials.merchant_id}",
             params,
         )
-        return [self._to_product(item) for item in _items(payload)][:limit]
+        return [self._map_record(self._to_product, item, "listeleme") for item in _items(payload, "listeleme")][:limit]
 
     def list_reviews(self, *, since: date | None = None, limit: int = 100) -> list[Review]:
         """Hepsiburada'nın satıcı API'sinde ürün yorumu okuma uç noktası yoktur.
